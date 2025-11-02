@@ -75,11 +75,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, observerOptions);
 
-    // 观察需要动画的元素
-    const animateElements = document.querySelectorAll('.service-card, .team-member, .stat-item, .contact-item, .section-header, .about-text, .about-image, .tier-header');
+    // 观察需要动画的元素（排除team-member，因为它们已经有自己的动画）
+    const animateElements = document.querySelectorAll('.service-card, .stat-item, .contact-item, .section-header, .about-text, .about-image, .tier-header');
     animateElements.forEach(el => {
         el.classList.add('animate-on-scroll');
         observer.observe(el);
+    });
+    
+    // 团队成员单独处理，确保始终可见
+    const teamMembers = document.querySelectorAll('.team-member');
+    teamMembers.forEach(member => {
+        member.style.opacity = '1';
+        member.style.visibility = 'visible';
     });
     
     // 特殊动画：section-header

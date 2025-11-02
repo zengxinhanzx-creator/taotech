@@ -1048,6 +1048,11 @@ body::after {
     overflow: hidden;
 }
 
+.team .container {
+    position: relative;
+    z-index: 1;
+}
+
 .team::before {
     content: '';
     position: absolute;
@@ -1068,6 +1073,8 @@ body::after {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 2rem;
+    position: relative;
+    z-index: 1;
 }
 
 @media (max-width: 1024px) {
@@ -1084,6 +1091,8 @@ body::after {
 
 .team-member {
     background: var(--card-bg);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
     padding: 2rem;
     border-radius: 20px;
     text-align: center;
@@ -1091,7 +1100,19 @@ body::after {
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+    z-index: 1;
+    opacity: 1;
+    visibility: visible;
+    display: block;
+    animation: fadeInUp 0.6s ease-out forwards;
 }
+
+.team-member:nth-child(1) { animation-delay: 0.1s; }
+.team-member:nth-child(2) { animation-delay: 0.2s; }
+.team-member:nth-child(3) { animation-delay: 0.3s; }
+.team-member:nth-child(4) { animation-delay: 0.4s; }
+.team-member:nth-child(5) { animation-delay: 0.5s; }
+.team-member:nth-child(6) { animation-delay: 0.6s; }
 
 .team-member::before {
     content: '';
@@ -2415,6 +2436,12 @@ img {
     opacity: 0;
 }
 
+/* 团队成员始终可见，不受animate-on-scroll影响 */
+.team-member.animate-on-scroll {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
 /* 数字计数动画 */
 @keyframes countUp {
     from {
@@ -2530,19 +2557,7 @@ section {
     z-index: 1;
 }
 
-.team-member {
-    background: var(--card-bg);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    animation: fadeInUp 0.6s ease-out backwards;
-}
-
-.team-member:nth-child(1) { animation-delay: 0.1s; }
-.team-member:nth-child(2) { animation-delay: 0.2s; }
-.team-member:nth-child(3) { animation-delay: 0.3s; }
-.team-member:nth-child(4) { animation-delay: 0.4s; }
-.team-member:nth-child(5) { animation-delay: 0.5s; }
-.team-member:nth-child(6) { animation-delay: 0.6s; }
+/* 团队成员动画已在上面定义，此处移除重复定义 */
 
 .contact-item {
     background: rgba(16, 20, 40, 0.4);
