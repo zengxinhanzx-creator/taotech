@@ -231,10 +231,11 @@ body::after {
     background-size: cover;
     background-position: center;
     background-blend-mode: overlay;
-    opacity: 0.08;
+    opacity: 0.04;
     z-index: 0;
     animation: breathe 12s ease-in-out infinite;
     pointer-events: none;
+    filter: brightness(0.3) contrast(0.8);
 }
 
 .hero::before {
@@ -246,8 +247,9 @@ body::after {
     height: 100%;
     background: 
         radial-gradient(circle at 50% 50%, rgba(0, 245, 255, 0.15) 0%, transparent 70%),
-        linear-gradient(135deg, rgba(0, 245, 255, 0.05) 0%, rgba(102, 126, 234, 0.05) 100%);
+        linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.6) 100%);
     animation: breathe 8s ease-in-out infinite;
+    z-index: 0;
 }
 
 @keyframes breathe {
@@ -305,24 +307,51 @@ body::after {
     gap: 4rem;
     align-items: center;
     position: relative;
-    z-index: 1;
+    z-index: 2;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    animation: fadeInLeft 1s ease-out;
+    padding: 20px;
+    border-radius: 20px;
+}
+
+/* 为hero文字区域添加背景遮罩增强可读性 */
+.hero-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border-radius: 20px;
+    z-index: -1;
+    pointer-events: none;
 }
 
 .hero-badge {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: var(--glass-bg);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(0, 245, 255, 0.3);
     padding: 10px 20px;
     border-radius: 50px;
     color: var(--primary-color);
     font-size: 0.9rem;
     font-weight: 600;
     margin-bottom: 2rem;
-    box-shadow: 0 4px 15px rgba(0, 245, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 245, 255, 0.2), 0 0 30px rgba(0, 0, 0, 0.5);
     animation: float 3s ease-in-out infinite;
+    position: relative;
+    z-index: 2;
 }
 
 .hero-title {
@@ -331,7 +360,13 @@ body::after {
     margin-bottom: 1.5rem;
     line-height: 1.1;
     letter-spacing: -0.02em;
-    text-shadow: 0 0 30px rgba(0, 245, 255, 0.3);
+    text-shadow: 
+        0 2px 10px rgba(0, 0, 0, 0.8),
+        0 0 30px rgba(0, 245, 255, 0.5),
+        0 4px 20px rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    position: relative;
+    z-index: 2;
 }
 
 .gradient-text {
@@ -346,8 +381,13 @@ body::after {
 .hero-subtitle {
     font-size: 1.2rem;
     margin-bottom: 2rem;
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.95);
     line-height: 1.6;
+    text-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.7),
+        0 1px 4px rgba(0, 0, 0, 0.5);
+    position: relative;
+    z-index: 2;
 }
 
 .hero-stats {
@@ -366,12 +406,16 @@ body::after {
     font-weight: 800;
     color: var(--primary-color);
     font-family: 'JetBrains Mono', monospace;
+    text-shadow: 
+        0 0 20px rgba(0, 245, 255, 0.6),
+        0 2px 8px rgba(0, 0, 0, 0.7);
 }
 
 .stat-label {
     font-size: 0.9rem;
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.9);
     font-weight: 500;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
 .hero-buttons {
