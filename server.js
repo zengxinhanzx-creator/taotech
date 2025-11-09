@@ -27,7 +27,23 @@ app.use(express.static(__dirname));
 // 确保 submissions.txt 文件存在
 if (!fs.existsSync(SUBMISSIONS_FILE)) {
     const header = '=== 臨床AI演示預約記錄 ===\n此文件用於保存所有通過網站提交的臨床AI演示預約表單數據\n每次提交都會以增量方式追加到此文件\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    fs.writeFileSync(SUBMISSIONS_FILE, header, 'utf8');
+    try {
+        fs.writeFileSync(SUBMISSIONS_FILE, header, 'utf8');
+        console.log(`✓ 創建 submissions.txt 文件: ${SUBMISSIONS_FILE}`);
+    } catch (error) {
+        console.error(`❌ 無法創建 submissions.txt 文件: ${error.message}`);
+    }
+} else {
+    console.log(`✓ submissions.txt 文件已存在: ${SUBMISSIONS_FILE}`);
+}
+
+// 检查文件权限
+try {
+    fs.accessSync(SUBMISSIONS_FILE, fs.constants.W_OK);
+    console.log(`✓ submissions.txt 文件可寫入`);
+} catch (error) {
+    console.error(`⚠ submissions.txt 文件可能沒有寫入權限: ${error.message}`);
+    console.error(`  請運行: chmod 666 ${SUBMISSIONS_FILE}`);
 }
 
 // 处理表单提交
@@ -78,22 +94,65 @@ ${message}
 `;
 
         console.log('收到新提交:', { name, email, institution, service });
+        console.log(`  文件路徑: ${SUBMISSIONS_FILE}`);
+
+        // 检查文件是否存在
+        if (!fs.existsSync(SUBMISSIONS_FILE)) {
+            console.warn(`⚠ submissions.txt 文件不存在，正在創建...`);
+            const header = '=== 臨床AI演示預約記錄 ===\n此文件用於保存所有通過網站提交的臨床AI演示預約表單數據\n每次提交都會以增量方式追加到此文件\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+            fs.writeFileSync(SUBMISSIONS_FILE, header, 'utf8');
+        }
 
         // 追加写入文件（增量保存）
-        fs.appendFileSync(SUBMISSIONS_FILE, submission, 'utf8');
-        
-        console.log(`✓ 提交已保存到 ${SUBMISSIONS_FILE}`);
-        console.log(`  提交者: ${name} (${email})`);
+        try {
+            fs.appendFileSync(SUBMISSIONS_FILE, submission, 'utf8');
+            console.log(`✓ 提交已保存到 ${SUBMISSIONS_FILE}`);
+            console.log(`  提交者: ${name} (${email})`);
+            
+            // 验证文件是否真的写入了
+            const fileStats = fs.statSync(SUBMISSIONS_FILE);
+            console.log(`  文件大小: ${fileStats.size} 字節`);
+            
+            // 读取最后几行验证
+            const fileContent = fs.readFileSync(SUBMISSIONS_FILE, 'utf8');
+            if (fileContent.includes(name) && fileContent.includes(email)) {
+                console.log(`✓ 驗證成功：提交內容已寫入文件`);
+            } else {
+                console.warn(`⚠ 警告：提交內容可能未正確寫入文件`);
+            }
+        } catch (writeError) {
+            console.error(`❌ 寫入文件時發生錯誤:`, writeError);
+            console.error(`  錯誤詳情: ${writeError.message}`);
+            console.error(`  錯誤堆棧: ${writeError.stack}`);
+            throw writeError; // 重新抛出错误以便被外层 catch 捕获
+        }
 
         res.json({ 
             success: true, 
             message: '臨床AI演示預約成功！我們的專家團隊將在24小時內與您聯繫，安排演示時間。' 
         });
     } catch (error) {
-        console.error('保存提交時發生錯誤:', error);
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('❌ 保存提交時發生錯誤:');
+        console.error(`  錯誤類型: ${error.name}`);
+        console.error(`  錯誤消息: ${error.message}`);
+        console.error(`  錯誤堆棧: ${error.stack}`);
+        console.error(`  文件路徑: ${SUBMISSIONS_FILE}`);
+        console.error(`  文件存在: ${fs.existsSync(SUBMISSIONS_FILE)}`);
+        if (fs.existsSync(SUBMISSIONS_FILE)) {
+            try {
+                const stats = fs.statSync(SUBMISSIONS_FILE);
+                console.error(`  文件大小: ${stats.size} 字節`);
+                console.error(`  文件權限: ${stats.mode.toString(8)}`);
+            } catch (statError) {
+                console.error(`  無法獲取文件信息: ${statError.message}`);
+            }
+        }
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
         res.status(500).json({ 
             success: false, 
-            message: '服務器錯誤，請稍後再試' 
+            message: '服務器錯誤，請稍後再試。錯誤已記錄到服務器日誌。' 
         });
     }
 });
