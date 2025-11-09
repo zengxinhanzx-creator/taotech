@@ -119,7 +119,6 @@ if command -v nginx &> /dev/null; then
     DOMAIN="taotech.com.hk"
     SSL_CERT=""
     SSL_KEY=""
-    HTTPS_PORT="${HTTPS_PORT:-8443}"  # 默认使用 8443 端口
     
     # 查找证书
     if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
@@ -142,33 +141,19 @@ if command -v nginx &> /dev/null; then
         echo "创建/更新 Nginx 配置..."
         
         if [ ! -z "$SSL_CERT" ] && [ -f "$SSL_CERT" ]; then
-            # 有 SSL 证书，配置 HTTPS（使用自定义端口 8443）
+            # 有 SSL 证书，配置 HTTPS（标准 443 端口）和 HTTP 重定向
             $SUDO tee "$NGINX_CONFIG" > /dev/null << NGINX_EOF
-# HTTP 服务器
+# HTTP 服务器 - 重定向到 HTTPS
 server {
     listen 80;
     server_name _;
     
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
+    return 301 https://\$host\$request_uri;
 }
 
-# HTTPS 服务器（自定义端口 8443）
+# HTTPS 服务器（标准 443 端口）
 server {
-    listen $HTTPS_PORT ssl http2;
+    listen 443 ssl http2;
     server_name _;
     
     ssl_certificate $SSL_CERT;
@@ -201,7 +186,7 @@ server {
     }
 }
 NGINX_EOF
-            echo -e "${GREEN}✓${NC} HTTPS 配置已创建（端口: $HTTPS_PORT）"
+            echo -e "${GREEN}✓${NC} HTTPS 配置已创建（标准 443 端口）"
         else
             # 无 SSL 证书，只配置 HTTP
             $SUDO tee "$NGINX_CONFIG" > /dev/null << 'NGINX_EOF'
@@ -265,19 +250,13 @@ echo "  停止: ${GREEN}$PM2_CMD stop $APP_NAME${NC}"
 echo ""
 echo -e "${BLUE}访问地址:${NC}"
 echo "  本地: ${GREEN}http://localhost:8080${NC}"
-echo "  Nginx HTTP: ${GREEN}http://localhost:80${NC}"
 
 # 检查 HTTPS
-if [ -f "$NGINX_CONFIG" ] && grep -q "listen.*ssl" "$NGINX_CONFIG"; then
-    HTTPS_PORT=$(grep -oP 'listen \K[0-9]+' "$NGINX_CONFIG" | grep -v "80" | head -1)
-    HTTPS_PORT=${HTTPS_PORT:-8443}
-    echo "  Nginx HTTPS: ${GREEN}https://localhost:$HTTPS_PORT${NC}"
-    DOMAIN=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONFIG" 2>/dev/null | head -1 | tr -d ' ')
-    if [ ! -z "$DOMAIN" ] && [ "$DOMAIN" != "_" ]; then
-        echo "  域名 HTTPS: ${GREEN}https://$DOMAIN:$HTTPS_PORT${NC}"
-    fi
-    echo -e "  ${YELLOW}注意: 需要在 URL 中指定端口号${NC}"
+if [ -f "$NGINX_CONFIG" ] && grep -q "listen.*443.*ssl" "$NGINX_CONFIG"; then
+    echo "  HTTP: ${GREEN}http://$DOMAIN${NC} (自动重定向到 HTTPS)"
+    echo "  HTTPS: ${GREEN}https://$DOMAIN${NC}"
 else
+    echo "  HTTP: ${GREEN}http://$DOMAIN${NC}"
     echo -e "  ${YELLOW}HTTPS: 未配置（运行 ./setup-https.sh 配置）${NC}"
 fi
 echo ""
