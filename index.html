@@ -619,16 +619,16 @@
                     <h3>預約臨床AI演示</h3>
                     <form>
                         <div class="form-group">
-                            <input type="text" placeholder="您的姓名" required>
+                            <input type="text" name="name" placeholder="您的姓名" required>
                         </div>
                         <div class="form-group">
-                            <input type="email" placeholder="您的郵箱" required>
+                            <input type="email" name="email" placeholder="您的郵箱" required>
                         </div>
                         <div class="form-group">
-                            <input type="text" placeholder="醫院/機構名稱" required>
+                            <input type="text" name="institution" placeholder="醫院/機構名稱" required>
                         </div>
                         <div class="form-group">
-                            <select required>
+                            <select name="service" required>
                                 <option value="">選擇感興趣的服務</option>
                                 <optgroup label="第一層級：數據層級">
                                     <option value="uk-biobank">UK Biobank數據處理</option>
@@ -654,7 +654,7 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <textarea placeholder="請描述您的具體需求和期望" rows="5" required></textarea>
+                            <textarea name="message" placeholder="請描述您的具體需求和期望" rows="5" required></textarea>
                         </div>
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-paper-plane"></i>
