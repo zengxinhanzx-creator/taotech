@@ -1,6 +1,14 @@
 # Nginx 反向代理配置示例
-# 将文件复制到 /etc/nginx/sites-available/taotech
-# 然后创建软链接: sudo ln -s /etc/nginx/sites-available/taotech /etc/nginx/sites-enabled/
+# 
+# 标准 Nginx 环境使用方法：
+# 1. 将文件复制到 /etc/nginx/sites-available/taotech
+# 2. 创建软链接: sudo ln -s /etc/nginx/sites-available/taotech /etc/nginx/sites-enabled/
+# 3. 测试配置: sudo nginx -t
+# 4. 重载配置: sudo systemctl reload nginx
+#
+# 宝塔面板环境使用方法：
+# 1. 在宝塔面板中，进入 网站 → taotech.com.hk → 设置 → 配置文件
+# 2. 参考 taotech.com.hk.bt.conf 文件内容进行配置
 
 # HTTP 服务器 - 重定向到 HTTPS（如果使用 SSL）
 server {
@@ -8,9 +16,59 @@ server {
     server_name _;  # 匹配所有域名，也可以设置为具体域名如 taotech.com.hk
     
     # 如果使用 HTTPS，取消下面的注释以启用重定向
-    # return 301 https://$server_name$request_uri;
+    return 301 https://$host$request_uri;
     
-    # 如果只使用 HTTP，使用下面的配置
+    # 如果只使用 HTTP，使用下面的配置（注释掉上面的 return 301）
+    # location / {
+    #     proxy_pass http://localhost:8080;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Upgrade $http_upgrade;
+    #     proxy_set_header Connection 'upgrade';
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    #     proxy_cache_bypass $http_upgrade;
+    #     
+    #     proxy_connect_timeout 60s;
+    #     proxy_send_timeout 60s;
+    #     proxy_read_timeout 60s;
+    #     
+    #     proxy_buffering off;
+    #     proxy_request_buffering off;
+    # }
+}
+
+# HTTPS 服务器（标准 443 端口）
+server {
+    listen 443 ssl http2;
+    server_name _;  # 匹配所有域名，也可以设置为具体域名如 taotech.com.hk
+    
+    # SSL 证书配置
+    # 方式1: Let's Encrypt 证书
+    ssl_certificate /etc/letsencrypt/live/taotech.com.hk/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/taotech.com.hk/privkey.pem;
+    
+    # 方式2: 宝塔面板证书（如果使用宝塔面板）
+    # ssl_certificate /www/server/panel/vhost/cert/taotech.com.hk/fullchain.pem;
+    # ssl_certificate_key /www/server/panel/vhost/cert/taotech.com.hk/privkey.pem;
+    
+    # SSL 优化配置
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE:ECDH:AES:HIGH:!NULL:!aNULL:!MD5:!ADH:!RC4;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+    
+    # 安全头
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    
+    # 反向代理到 Node.js 应用（端口 8080）
     location / {
         proxy_pass http://localhost:8080;
         proxy_http_version 1.1;
@@ -26,47 +84,17 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+        
+        # 缓冲设置
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+    
+    # 静态文件缓存（可选，提高性能）
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        proxy_pass http://localhost:8080;
+        proxy_cache_valid 200 1d;
+        expires 1d;
+        add_header Cache-Control "public, immutable";
     }
 }
-
-# HTTPS 服务器（如果使用 SSL 证书）
-# server {
-#     listen 443 ssl http2;
-#     server_name taotech.com.hk www.taotech.com.hk;
-# 
-#     # SSL 证书配置
-#     ssl_certificate /etc/letsencrypt/live/taotech.com.hk/fullchain.pem;
-#     ssl_certificate_key /etc/letsencrypt/live/taotech.com.hk/privkey.pem;
-#     
-#     # SSL 优化配置
-#     ssl_protocols TLSv1.2 TLSv1.3;
-#     ssl_ciphers HIGH:!aNULL:!MD5;
-#     ssl_prefer_server_ciphers on;
-#     ssl_session_cache shared:SSL:10m;
-#     ssl_session_timeout 10m;
-# 
-#     # 安全头
-#     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-#     add_header X-Frame-Options "SAMEORIGIN" always;
-#     add_header X-Content-Type-Options "nosniff" always;
-#     add_header X-XSS-Protection "1; mode=block" always;
-# 
-#     # 反向代理到 Node.js 应用
-#     location / {
-#         proxy_pass http://localhost:8080;
-#         proxy_http_version 1.1;
-#         proxy_set_header Upgrade $http_upgrade;
-#         proxy_set_header Connection 'upgrade';
-#         proxy_set_header Host $host;
-#         proxy_set_header X-Real-IP $remote_addr;
-#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#         proxy_set_header X-Forwarded-Proto $scheme;
-#         proxy_cache_bypass $http_upgrade;
-#         
-#         # 超时设置
-#         proxy_connect_timeout 60s;
-#         proxy_send_timeout 60s;
-#         proxy_read_timeout 60s;
-#     }
-# }
-

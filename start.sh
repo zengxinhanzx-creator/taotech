@@ -2,6 +2,7 @@
 
 # TAO Technology 网站一键启动脚本
 # 功能：自动配置并启动 PM2 和 Nginx 服务
+# 支持：宝塔面板和标准 Nginx 环境
 
 set -e
 
@@ -27,19 +28,156 @@ DOMAIN="taotech.com.hk"
 
 # 检测宝塔面板环境
 if [ -d "/www/server/panel" ]; then
-    # 宝塔面板环境
     IS_BT_PANEL=true
     NGINX_CONFIG="/www/server/panel/vhost/nginx/${DOMAIN}.conf"
     NGINX_CMD="/www/server/nginx/sbin/nginx"
     BT_CERT_PATH="/www/server/panel/vhost/cert/${DOMAIN}"
 else
-    # 标准 Nginx 环境
     IS_BT_PANEL=false
     NGINX_CONFIG="/etc/nginx/sites-available/${APP_NAME}"
     NGINX_ENABLED="/etc/nginx/sites-enabled/${APP_NAME}"
     NGINX_CMD="nginx"
 fi
 
+# 检查是否只是诊断模式
+if [ "$1" = "check" ] || [ "$1" = "diagnose" ]; then
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}网站诊断模式${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # 检查权限
+    if [ "$EUID" -ne 0 ]; then 
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
+    # 1. 检查 SSL 证书
+    echo -e "${BLUE}[1/6]${NC} 检查 SSL 证书..."
+    SSL_CERT=""
+    SSL_KEY=""
+    
+    if [ "$IS_BT_PANEL" = true ] && [ -f "${BT_CERT_PATH}/fullchain.pem" ]; then
+        SSL_CERT="${BT_CERT_PATH}/fullchain.pem"
+        SSL_KEY="${BT_CERT_PATH}/privkey.pem"
+        echo -e "${GREEN}✓${NC} 宝塔面板 SSL 证书存在"
+    elif [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+        SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+        SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+        echo -e "${GREEN}✓${NC} Let's Encrypt SSL 证书存在"
+    else
+        echo -e "${RED}❌ SSL 证书不存在${NC}"
+    fi
+    
+    if [ ! -z "$SSL_CERT" ]; then
+        echo "  证书: $SSL_CERT"
+        echo "  密钥: $SSL_KEY"
+        CERT_EXPIRY=$($SUDO openssl x509 -enddate -noout -in "$SSL_CERT" 2>/dev/null | cut -d= -f2 || echo "无法读取")
+        echo "  过期时间: $CERT_EXPIRY"
+    fi
+    echo ""
+    
+    # 2. 检查端口监听
+    echo -e "${BLUE}[2/6]${NC} 检查端口监听..."
+    if command -v ss &> /dev/null; then
+        PORT_80=$(ss -tlnp 2>/dev/null | grep ':80 ' || echo "")
+        PORT_443=$(ss -tlnp 2>/dev/null | grep ':443 ' || echo "")
+        PORT_8080=$(ss -tlnp 2>/dev/null | grep ':8080 ' || echo "")
+    elif command -v netstat &> /dev/null; then
+        PORT_80=$(netstat -tlnp 2>/dev/null | grep ':80 ' || echo "")
+        PORT_443=$(netstat -tlnp 2>/dev/null | grep ':443 ' || echo "")
+        PORT_8080=$(netstat -tlnp 2>/dev/null | grep ':8080 ' || echo "")
+    else
+        PORT_80=""
+        PORT_443=""
+        PORT_8080=""
+    fi
+    
+    [ ! -z "$PORT_80" ] && echo -e "${GREEN}✓${NC} 端口 80 正在监听" || echo -e "${RED}❌ 端口 80 未监听${NC}"
+    [ ! -z "$PORT_443" ] && echo -e "${GREEN}✓${NC} 端口 443 正在监听" || echo -e "${RED}❌ 端口 443 未监听${NC}"
+    [ ! -z "$PORT_8080" ] && echo -e "${GREEN}✓${NC} 端口 8080 正在监听" || echo -e "${RED}❌ 端口 8080 未监听${NC}"
+    echo ""
+    
+    # 3. 检查 PM2 应用
+    echo -e "${BLUE}[3/6]${NC} 检查 PM2 应用..."
+    if command -v pm2 &> /dev/null; then
+        if pm2 list 2>/dev/null | grep -q "$APP_NAME.*online"; then
+            echo -e "${GREEN}✓${NC} PM2 应用正在运行"
+            pm2 list | grep "$APP_NAME"
+        else
+            echo -e "${RED}❌ PM2 应用未运行${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠${NC} PM2 未安装"
+    fi
+    echo ""
+    
+    # 4. 检查 Nginx 配置
+    echo -e "${BLUE}[4/6]${NC} 检查 Nginx 配置..."
+    if [ -f "$NGINX_CONFIG" ]; then
+        echo -e "${GREEN}✓${NC} Nginx 配置文件存在: $NGINX_CONFIG"
+        if grep -q "return 301" "$NGINX_CONFIG"; then
+            echo -e "${GREEN}✓${NC} HTTP 到 HTTPS 重定向已配置"
+        else
+            echo -e "${YELLOW}⚠${NC} HTTP 到 HTTPS 重定向未配置"
+        fi
+        if grep -q "listen.*443.*ssl" "$NGINX_CONFIG"; then
+            echo -e "${GREEN}✓${NC} HTTPS (443) 配置存在"
+        else
+            echo -e "${YELLOW}⚠${NC} HTTPS (443) 配置不存在"
+        fi
+    else
+        echo -e "${RED}❌ Nginx 配置文件不存在${NC}"
+    fi
+    echo ""
+    
+    # 5. 测试 Nginx 配置
+    echo -e "${BLUE}[5/6]${NC} 测试 Nginx 配置..."
+    if [ "$IS_BT_PANEL" = true ] && [ -f "$NGINX_CMD" ]; then
+        if $SUDO $NGINX_CMD -t 2>&1; then
+            echo -e "${GREEN}✓${NC} Nginx 配置测试通过"
+        else
+            echo -e "${RED}❌ Nginx 配置测试失败${NC}"
+        fi
+    elif command -v nginx &> /dev/null; then
+        if $SUDO nginx -t 2>&1; then
+            echo -e "${GREEN}✓${NC} Nginx 配置测试通过"
+        else
+            echo -e "${RED}❌ Nginx 配置测试失败${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠${NC} Nginx 未安装"
+    fi
+    echo ""
+    
+    # 6. 测试访问
+    echo -e "${BLUE}[6/6]${NC} 测试网站访问..."
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L --connect-timeout 5 http://$DOMAIN 2>&1 || echo "000")
+    if [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "302" ]; then
+        echo -e "${GREEN}✓${NC} HTTP 正确重定向到 HTTPS (状态码: $HTTP_STATUS)"
+    elif [ "$HTTP_STATUS" = "200" ]; then
+        echo -e "${YELLOW}⚠${NC} HTTP 返回 200（应该重定向到 HTTPS）"
+    else
+        echo -e "${RED}❌ HTTP 访问异常 (状态码: $HTTP_STATUS)${NC}"
+    fi
+    
+    if [ ! -z "$SSL_CERT" ]; then
+        HTTPS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -k --connect-timeout 5 https://$DOMAIN 2>&1 || echo "000")
+        if [ "$HTTPS_STATUS" = "200" ]; then
+            echo -e "${GREEN}✓${NC} HTTPS 访问正常 (状态码: $HTTPS_STATUS)"
+        else
+            echo -e "${RED}❌ HTTPS 访问失败 (状态码: $HTTPS_STATUS)${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠${NC} HTTPS 未配置（无 SSL 证书）"
+    fi
+    echo ""
+    
+    exit 0
+fi
+
+# 正常启动流程
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}TAO Technology 网站一键启动脚本${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -183,15 +321,17 @@ server {
     ssl_certificate $SSL_CERT;
     ssl_certificate_key $SSL_KEY;
     ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE:ECDH:AES:HIGH:!NULL:!aNULL:!MD5:!ADH:!RC4;
     ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
+    ssl_session_tickets off;
     
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
     
     location / {
         proxy_pass http://localhost:8080;
@@ -207,6 +347,9 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+        
+        proxy_buffering off;
+        proxy_request_buffering off;
     }
 }
 NGINX_EOF
@@ -232,6 +375,9 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+        
+        proxy_buffering off;
+        proxy_request_buffering off;
     }
 }
 NGINX_EOF
@@ -248,7 +394,6 @@ NGINX_EOF
     # 测试并重载
     if $SUDO $NGINX_CMD -t 2>/dev/null; then
         if [ "$IS_BT_PANEL" = true ]; then
-            # 宝塔面板重载方式
             $SUDO $NGINX_CMD -s reload 2>/dev/null || $SUDO systemctl reload nginx 2>/dev/null || true
         else
             $SUDO systemctl reload nginx 2>/dev/null || $SUDO nginx -s reload 2>/dev/null || true
@@ -276,6 +421,7 @@ echo "  查看日志: ${GREEN}$PM2_CMD logs $APP_NAME${NC}"
 echo "  查看状态: ${GREEN}$PM2_CMD status${NC}"
 echo "  重启: ${GREEN}$PM2_CMD restart $APP_NAME${NC}"
 echo "  停止: ${GREEN}$PM2_CMD stop $APP_NAME${NC}"
+echo "  诊断: ${GREEN}./start.sh check${NC}"
 echo ""
 echo -e "${BLUE}访问地址:${NC}"
 echo "  本地: ${GREEN}http://localhost:8080${NC}"
