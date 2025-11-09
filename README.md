@@ -54,13 +54,33 @@ TaoTech-Website/
 
 ## 🚀 快速開始
 
-### 安裝依賴
+### 方法一：一鍵啟動（推薦）
+
+使用一鍵啟動腳本自動配置和啟動所有服務：
+
+```bash
+# 啟動所有服務（PM2 + Nginx）
+./start.sh
+```
+
+腳本會自動：
+- 檢查 Node.js 和 npm
+- 安裝項目依賴
+- 安裝 PM2（如果未安裝）
+- 清理舊進程
+- 啟動 Node.js 應用
+- 配置 Nginx 反向代理
+- 檢查服務狀態
+
+### 方法二：手動啟動
+
+#### 安裝依賴
 
 ```bash
 npm install
 ```
 
-### 啟動開發服務器
+#### 啟動開發服務器
 
 ```bash
 npm start
@@ -69,6 +89,17 @@ npm start
 服務器將運行在 `http://localhost:8080`
 
 **注意**: 如果使用 Nginx 反向代理，Nginx 监听 80 端口，Node.js 运行在 8080 端口。参考 `nginx.conf.example` 配置 Nginx。
+
+### 停止服務
+
+```bash
+# 使用停止腳本
+./stop.sh
+
+# 或手動停止
+pm2 stop taotech
+pm2 delete taotech
+```
 
 ### 表單提交
 
