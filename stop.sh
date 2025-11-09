@@ -11,6 +11,17 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# 默认项目目录
+DEFAULT_DIR="/www/wwwroot/taotech.com.hk"
+PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# 如果当前目录不是默认目录，尝试使用默认目录
+if [ "$PROJECT_DIR" != "$DEFAULT_DIR" ] && [ -d "$DEFAULT_DIR" ]; then
+    PROJECT_DIR="$DEFAULT_DIR"
+fi
+
+cd "$PROJECT_DIR"
+
 APP_NAME="taotech"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

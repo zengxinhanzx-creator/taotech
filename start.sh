@@ -12,8 +12,16 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# 项目目录
+# 项目目录（默认路径）
+DEFAULT_DIR="/www/wwwroot/taotech.com.hk"
 PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# 如果当前目录不是默认目录，尝试使用默认目录
+if [ "$PROJECT_DIR" != "$DEFAULT_DIR" ] && [ -d "$DEFAULT_DIR" ]; then
+    echo -e "${YELLOW}ℹ${NC} 检测到默认目录，切换到: $DEFAULT_DIR"
+    PROJECT_DIR="$DEFAULT_DIR"
+fi
+
 APP_NAME="taotech"
 NGINX_CONFIG="/etc/nginx/sites-available/${APP_NAME}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${APP_NAME}"
