@@ -150,19 +150,46 @@ echo ""
 # 6. 配置 Nginx（如果存在）
 echo -e "${BLUE}[6/7]${NC} 配置 Nginx..."
 if command -v nginx &> /dev/null; then
+    # 检查并创建 Nginx 配置目录
+    NGINX_AVAILABLE_DIR="/etc/nginx/sites-available"
+    NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"
+    
+    if [ ! -d "$NGINX_AVAILABLE_DIR" ]; then
+        echo -e "${YELLOW}⚠${NC} Nginx 配置目录不存在，正在创建..."
+        $SUDO mkdir -p "$NGINX_AVAILABLE_DIR" 2>/dev/null || {
+            echo -e "${YELLOW}⚠${NC} 无法创建配置目录，跳过 Nginx 配置"
+            echo "  请手动创建: $SUDO mkdir -p $NGINX_AVAILABLE_DIR"
+        }
+    fi
+    
+    if [ ! -d "$NGINX_ENABLED_DIR" ]; then
+        $SUDO mkdir -p "$NGINX_ENABLED_DIR" 2>/dev/null || true
+    fi
+    
     # 检查 Nginx 配置是否存在
     if [ ! -f "$NGINX_CONFIG" ]; then
         echo -e "${YELLOW}⚠${NC} Nginx 配置文件不存在"
         if [ -f "nginx.conf.example" ]; then
             echo "从 nginx.conf.example 创建配置..."
-            $SUDO cp nginx.conf.example "$NGINX_CONFIG"
-            # 替换域名（如果需要）
-            read -p "请输入您的域名 (直接回车跳过): " DOMAIN
-            if [ ! -z "$DOMAIN" ]; then
-                $SUDO sed -i "s/taotech.com.hk/$DOMAIN/g" "$NGINX_CONFIG"
-                $SUDO sed -i "s/yourdomain.com/$DOMAIN/g" "$NGINX_CONFIG"
+            if [ -d "$NGINX_AVAILABLE_DIR" ]; then
+                $SUDO cp nginx.conf.example "$NGINX_CONFIG" 2>/dev/null || {
+                    echo -e "${YELLOW}⚠${NC} 无法创建配置文件，可能需要 sudo 权限"
+                    echo "  请手动复制: $SUDO cp nginx.conf.example $NGINX_CONFIG"
+                }
+                
+                # 替换域名（如果需要）
+                if [ -f "$NGINX_CONFIG" ]; then
+                    read -p "请输入您的域名 (直接回车跳过): " DOMAIN
+                    if [ ! -z "$DOMAIN" ]; then
+                        $SUDO sed -i "s/taotech.com.hk/$DOMAIN/g" "$NGINX_CONFIG" 2>/dev/null || true
+                        $SUDO sed -i "s/yourdomain.com/$DOMAIN/g" "$NGINX_CONFIG" 2>/dev/null || true
+                    fi
+                    echo -e "${GREEN}✓${NC} 配置文件已创建: $NGINX_CONFIG"
+                fi
+            else
+                echo -e "${YELLOW}⚠${NC} Nginx 配置目录不存在，跳过自动配置"
+                echo "  请手动配置 Nginx 或安装 Nginx: $SUDO apt install nginx"
             fi
-            echo -e "${GREEN}✓${NC} 配置文件已创建: $NGINX_CONFIG"
         else
             echo -e "${YELLOW}⚠${NC} 未找到 nginx.conf.example，跳过 Nginx 配置"
         fi
