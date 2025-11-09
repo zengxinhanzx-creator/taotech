@@ -116,12 +116,17 @@ if command -v nginx &> /dev/null; then
     $SUDO mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
     
     # 检查是否有 SSL 证书
-    DOMAIN=$(hostname -f 2>/dev/null || echo "")
+    DOMAIN="taotech.com.hk"
     SSL_CERT=""
     SSL_KEY=""
+    HTTPS_PORT="${HTTPS_PORT:-8443}"  # 默认使用 8443 端口
     
-    if [ ! -z "$DOMAIN" ] && [ "$DOMAIN" != "localhost" ]; then
-        # 尝试查找证书
+    # 查找证书
+    if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+        SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+        SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+    else
+        # 尝试查找其他证书
         for cert_dir in /etc/letsencrypt/live/*/; do
             if [ -f "${cert_dir}fullchain.pem" ] && [ -f "${cert_dir}privkey.pem" ]; then
                 SSL_CERT="${cert_dir}fullchain.pem"
@@ -137,18 +142,33 @@ if command -v nginx &> /dev/null; then
         echo "创建/更新 Nginx 配置..."
         
         if [ ! -z "$SSL_CERT" ] && [ -f "$SSL_CERT" ]; then
-            # 有 SSL 证书，配置 HTTPS
+            # 有 SSL 证书，配置 HTTPS（使用自定义端口 8443）
             $SUDO tee "$NGINX_CONFIG" > /dev/null << NGINX_EOF
-# HTTP 重定向到 HTTPS
+# HTTP 服务器
 server {
     listen 80;
     server_name _;
-    return 301 https://\$host\$request_uri;
+    
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
 }
 
-# HTTPS 服务器
+# HTTPS 服务器（自定义端口 8443）
 server {
-    listen 443 ssl http2;
+    listen $HTTPS_PORT ssl http2;
     server_name _;
     
     ssl_certificate $SSL_CERT;
@@ -181,7 +201,7 @@ server {
     }
 }
 NGINX_EOF
-            echo -e "${GREEN}✓${NC} HTTPS 配置已创建"
+            echo -e "${GREEN}✓${NC} HTTPS 配置已创建（端口: $HTTPS_PORT）"
         else
             # 无 SSL 证书，只配置 HTTP
             $SUDO tee "$NGINX_CONFIG" > /dev/null << 'NGINX_EOF'
@@ -248,12 +268,15 @@ echo "  本地: ${GREEN}http://localhost:8080${NC}"
 echo "  Nginx HTTP: ${GREEN}http://localhost:80${NC}"
 
 # 检查 HTTPS
-if [ -f "$NGINX_CONFIG" ] && grep -q "listen 443" "$NGINX_CONFIG"; then
-    echo "  Nginx HTTPS: ${GREEN}https://localhost:443${NC}"
+if [ -f "$NGINX_CONFIG" ] && grep -q "listen.*ssl" "$NGINX_CONFIG"; then
+    HTTPS_PORT=$(grep -oP 'listen \K[0-9]+' "$NGINX_CONFIG" | grep -v "80" | head -1)
+    HTTPS_PORT=${HTTPS_PORT:-8443}
+    echo "  Nginx HTTPS: ${GREEN}https://localhost:$HTTPS_PORT${NC}"
     DOMAIN=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONFIG" 2>/dev/null | head -1 | tr -d ' ')
     if [ ! -z "$DOMAIN" ] && [ "$DOMAIN" != "_" ]; then
-        echo "  域名 HTTPS: ${GREEN}https://$DOMAIN${NC}"
+        echo "  域名 HTTPS: ${GREEN}https://$DOMAIN:$HTTPS_PORT${NC}"
     fi
+    echo -e "  ${YELLOW}注意: 需要在 URL 中指定端口号${NC}"
 else
     echo -e "  ${YELLOW}HTTPS: 未配置（运行 ./setup-https.sh 配置）${NC}"
 fi
