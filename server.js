@@ -185,12 +185,23 @@ if (hasSSL) {
     });
 } else {
     // 使用 HTTP（开发环境）
+    const isProduction = process.env.NODE_ENV === 'production';
     app.listen(PORT, () => {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log(`✓ 服務器運行在 http://localhost:${PORT}`);
-        console.log(`⚠ SSL 證書未找到，使用 HTTP 模式`);
-        console.log(`  證書路徑: ${SSL_CERT_PATH}`);
-        console.log(`  如需啟用 HTTPS，請參考 HTTPS_SETUP.md`);
+        
+        if (isProduction) {
+            console.log(`⚠ SSL 證書未找到，使用 HTTP 模式`);
+            console.log(`  證書路徑: ${SSL_CERT_PATH}`);
+            console.log(`  私鑰路徑: ${SSL_KEY_PATH}`);
+            console.log(`  如需啟用 HTTPS，請運行:`);
+            console.log(`    sudo ./get-cert-standalone.sh`);
+            console.log(`  或參考: HTTPS_SETUP.md`);
+        } else {
+            console.log(`ℹ 開發模式：使用 HTTP（本地開發）`);
+            console.log(`  生產環境將自動檢測 SSL 證書並啟用 HTTPS`);
+        }
+        
         console.log(`✓ 表單提交將增量保存到: ${SUBMISSIONS_FILE}`);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     });
