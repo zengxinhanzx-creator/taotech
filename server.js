@@ -120,7 +120,7 @@ if (hasSSL && process.env.NODE_ENV === 'production') {
     httpApp.use((req, res) => {
         res.redirect(301, `https://${req.headers.host}${req.url}`);
     });
-    http.createServer(httpApp).listen(HTTP_PORT, () => {
+    http.createServer(httpApp).listen(HTTP_PORT, '0.0.0.0', () => {
         console.log(`HTTP 服務器運行在端口 ${HTTP_PORT}（重定向到 HTTPS）`);
     });
 }
@@ -132,14 +132,14 @@ if (hasSSL) {
         key: fs.readFileSync(SSL_KEY_PATH)
     };
     
-    https.createServer(options, app).listen(HTTPS_PORT, () => {
-        console.log(`HTTPS 服務器運行在 https://localhost:${HTTPS_PORT}`);
+    https.createServer(options, app).listen(HTTPS_PORT, '0.0.0.0', () => {
+        console.log(`HTTPS 服務器運行在 https://0.0.0.0:${HTTPS_PORT}`);
         console.log(`表單提交將保存到: ${SUBMISSIONS_FILE}`);
     });
 } else {
     const isProduction = process.env.NODE_ENV === 'production';
-    app.listen(PORT, () => {
-        console.log(`服務器運行在 http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`服務器運行在 http://0.0.0.0:${PORT}`);
         if (isProduction) {
             console.log(`SSL 證書未找到，使用 HTTP 模式`);
         }
