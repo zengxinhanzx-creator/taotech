@@ -23,8 +23,22 @@ if [ "$PROJECT_DIR" != "$DEFAULT_DIR" ] && [ -d "$DEFAULT_DIR" ]; then
 fi
 
 APP_NAME="taotech"
-NGINX_CONFIG="/etc/nginx/sites-available/${APP_NAME}"
-NGINX_ENABLED="/etc/nginx/sites-enabled/${APP_NAME}"
+DOMAIN="taotech.com.hk"
+
+# 检测宝塔面板环境
+if [ -d "/www/server/panel" ]; then
+    # 宝塔面板环境
+    IS_BT_PANEL=true
+    NGINX_CONFIG="/www/server/panel/vhost/nginx/${DOMAIN}.conf"
+    NGINX_CMD="/www/server/nginx/sbin/nginx"
+    BT_CERT_PATH="/www/server/panel/vhost/cert/${DOMAIN}"
+else
+    # 标准 Nginx 环境
+    IS_BT_PANEL=false
+    NGINX_CONFIG="/etc/nginx/sites-available/${APP_NAME}"
+    NGINX_ENABLED="/etc/nginx/sites-enabled/${APP_NAME}"
+    NGINX_CMD="nginx"
+fi
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}TAO Technology 网站一键启动脚本${NC}"
@@ -111,26 +125,36 @@ echo ""
 
 # 5. 配置 Nginx
 echo -e "${BLUE}[5/5]${NC} 配置 Nginx..."
-if command -v nginx &> /dev/null; then
+if command -v nginx &> /dev/null || [ -f "$NGINX_CMD" ] || [ "$IS_BT_PANEL" = true ]; then
     # 创建配置目录
-    $SUDO mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
+    if [ "$IS_BT_PANEL" = false ]; then
+        $SUDO mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
+    else
+        $SUDO mkdir -p /www/server/panel/vhost/nginx 2>/dev/null || true
+    fi
     
-    # 检查是否有 SSL 证书
-    DOMAIN="taotech.com.hk"
+    # 检查是否有 SSL 证书（优先使用宝塔面板证书，然后是 Let's Encrypt）
     SSL_CERT=""
     SSL_KEY=""
     
-    # 查找证书
-    if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+    # 1. 优先查找宝塔面板证书
+    if [ "$IS_BT_PANEL" = true ] && [ -f "${BT_CERT_PATH}/fullchain.pem" ]; then
+        SSL_CERT="${BT_CERT_PATH}/fullchain.pem"
+        SSL_KEY="${BT_CERT_PATH}/privkey.pem"
+        echo -e "${GREEN}✓${NC} 检测到宝塔面板 SSL 证书"
+    # 2. 查找 Let's Encrypt 证书
+    elif [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
         SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
         SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+        echo -e "${GREEN}✓${NC} 检测到 Let's Encrypt SSL 证书"
     else
-        # 尝试查找其他证书
+        # 3. 尝试查找其他证书
         for cert_dir in /etc/letsencrypt/live/*/; do
             if [ -f "${cert_dir}fullchain.pem" ] && [ -f "${cert_dir}privkey.pem" ]; then
                 SSL_CERT="${cert_dir}fullchain.pem"
                 SSL_KEY="${cert_dir}privkey.pem"
                 DOMAIN=$(basename "$cert_dir")
+                echo -e "${GREEN}✓${NC} 检测到其他 SSL 证书"
                 break
             fi
         done
@@ -216,18 +240,23 @@ NGINX_EOF
         fi
     fi
     
-    # 启用配置
-    if [ ! -L "$NGINX_ENABLED" ]; then
+    # 启用配置（仅非宝塔面板需要）
+    if [ "$IS_BT_PANEL" = false ] && [ ! -L "$NGINX_ENABLED" ]; then
         $SUDO ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
     fi
     
     # 测试并重载
-    if $SUDO nginx -t 2>/dev/null; then
-        $SUDO systemctl reload nginx 2>/dev/null || $SUDO nginx -s reload 2>/dev/null || true
+    if $SUDO $NGINX_CMD -t 2>/dev/null; then
+        if [ "$IS_BT_PANEL" = true ]; then
+            # 宝塔面板重载方式
+            $SUDO $NGINX_CMD -s reload 2>/dev/null || $SUDO systemctl reload nginx 2>/dev/null || true
+        else
+            $SUDO systemctl reload nginx 2>/dev/null || $SUDO nginx -s reload 2>/dev/null || true
+        fi
         echo -e "${GREEN}✓${NC} Nginx 配置已更新并重载"
     else
         echo -e "${YELLOW}⚠${NC} Nginx 配置测试失败"
-        $SUDO nginx -t
+        $SUDO $NGINX_CMD -t
     fi
 else
     echo -e "${YELLOW}⚠${NC} Nginx 未安装，跳过配置"
@@ -251,12 +280,15 @@ echo ""
 echo -e "${BLUE}访问地址:${NC}"
 echo "  本地: ${GREEN}http://localhost:8080${NC}"
 
-# 检查 HTTPS
+# 检查 HTTPS（443端口）
 if [ -f "$NGINX_CONFIG" ] && grep -q "listen.*443.*ssl" "$NGINX_CONFIG"; then
-    echo "  HTTP: ${GREEN}http://$DOMAIN${NC} (自动重定向到 HTTPS)"
-    echo "  HTTPS: ${GREEN}https://$DOMAIN${NC}"
+    echo "  HTTP (80): ${GREEN}http://$DOMAIN${NC} (自动重定向到 HTTPS)"
+    echo "  HTTPS (443): ${GREEN}https://$DOMAIN${NC}"
+    if [ "$IS_BT_PANEL" = true ]; then
+        echo -e "  ${YELLOW}提示: 宝塔面板配置位于: $NGINX_CONFIG${NC}"
+    fi
 else
-    echo "  HTTP: ${GREEN}http://$DOMAIN${NC}"
-    echo -e "  ${YELLOW}HTTPS: 未配置（运行 ./setup-https.sh 配置）${NC}"
+    echo "  HTTP (80): ${GREEN}http://$DOMAIN${NC}"
+    echo -e "  ${YELLOW}HTTPS (443): 未配置（运行 ./setup-https.sh 配置）${NC}"
 fi
 echo ""

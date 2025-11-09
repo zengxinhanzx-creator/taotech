@@ -13,8 +13,19 @@ NC='\033[0m'
 
 DOMAIN="taotech.com.hk"
 APP_NAME="taotech"
-NGINX_CONFIG="/etc/nginx/sites-available/${APP_NAME}"
-NGINX_ENABLED="/etc/nginx/sites-enabled/${APP_NAME}"
+
+# 检测宝塔面板环境
+if [ -d "/www/server/panel" ]; then
+    IS_BT_PANEL=true
+    NGINX_CONFIG="/www/server/panel/vhost/nginx/${DOMAIN}.conf"
+    NGINX_CMD="/www/server/nginx/sbin/nginx"
+    BT_CERT_PATH="/www/server/panel/vhost/cert/${DOMAIN}"
+else
+    IS_BT_PANEL=false
+    NGINX_CONFIG="/etc/nginx/sites-available/${APP_NAME}"
+    NGINX_ENABLED="/etc/nginx/sites-enabled/${APP_NAME}"
+    NGINX_CMD="nginx"
+fi
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}HTTPS 443 端口修复脚本${NC}"
@@ -28,15 +39,25 @@ else
     SUDO=""
 fi
 
-# 1. 检查 SSL 证书
+# 1. 检查 SSL 证书（优先使用宝塔面板证书，然后是 Let's Encrypt）
 echo -e "${BLUE}[1/6]${NC} 检查 SSL 证书..."
-SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+SSL_CERT=""
+SSL_KEY=""
 
-if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
+# 1. 优先查找宝塔面板证书
+if [ "$IS_BT_PANEL" = true ] && [ -f "${BT_CERT_PATH}/fullchain.pem" ]; then
+    SSL_CERT="${BT_CERT_PATH}/fullchain.pem"
+    SSL_KEY="${BT_CERT_PATH}/privkey.pem"
+    echo -e "${GREEN}✓${NC} 检测到宝塔面板 SSL 证书"
+# 2. 查找 Let's Encrypt 证书
+elif [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+    SSL_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+    SSL_KEY="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+    echo -e "${GREEN}✓${NC} 检测到 Let's Encrypt SSL 证书"
+else
     echo -e "${RED}❌ SSL 证书不存在${NC}"
-    echo "  证书路径: $SSL_CERT"
-    echo "  密钥路径: $SSL_KEY"
+    echo "  宝塔证书路径: ${BT_CERT_PATH}/fullchain.pem"
+    echo "  Let's Encrypt 路径: /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
     echo ""
     echo -e "${YELLOW}请先运行以下命令获取证书:${NC}"
     echo "  ./setup-https.sh"
@@ -56,20 +77,27 @@ echo ""
 
 # 2. 检查 Nginx 是否安装
 echo -e "${BLUE}[2/6]${NC} 检查 Nginx..."
-if ! command -v nginx &> /dev/null; then
+if [ "$IS_BT_PANEL" = true ] && [ -f "$NGINX_CMD" ]; then
+    NGINX_VERSION=$($NGINX_CMD -v 2>&1 | grep -oP 'nginx/\K[0-9.]+' || echo "unknown")
+    echo -e "${GREEN}✓${NC} Nginx 已安装 (版本: $NGINX_VERSION, 宝塔面板)"
+elif command -v nginx &> /dev/null; then
+    NGINX_VERSION=$(nginx -v 2>&1 | grep -oP 'nginx/\K[0-9.]+' || echo "unknown")
+    echo -e "${GREEN}✓${NC} Nginx 已安装 (版本: $NGINX_VERSION)"
+else
     echo -e "${RED}❌ Nginx 未安装${NC}"
     exit 1
 fi
-
-NGINX_VERSION=$(nginx -v 2>&1 | grep -oP 'nginx/\K[0-9.]+' || echo "unknown")
-echo -e "${GREEN}✓${NC} Nginx 已安装 (版本: $NGINX_VERSION)"
 echo ""
 
 # 3. 创建/更新 Nginx 配置
 echo -e "${BLUE}[3/6]${NC} 更新 Nginx 配置..."
 
 # 创建配置目录
-$SUDO mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
+if [ "$IS_BT_PANEL" = false ]; then
+    $SUDO mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
+else
+    $SUDO mkdir -p /www/server/panel/vhost/nginx 2>/dev/null || true
+fi
 
 # 强制更新配置
 echo "创建 HTTPS 配置..."
@@ -121,16 +149,20 @@ NGINX_EOF
 echo -e "${GREEN}✓${NC} Nginx 配置已更新"
 echo ""
 
-# 4. 启用配置
+# 4. 启用配置（仅非宝塔面板需要）
 echo -e "${BLUE}[4/6]${NC} 启用 Nginx 配置..."
-if [ ! -L "$NGINX_ENABLED" ]; then
-    $SUDO ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
-    echo -e "${GREEN}✓${NC} 配置已启用"
+if [ "$IS_BT_PANEL" = false ]; then
+    if [ ! -L "$NGINX_ENABLED" ]; then
+        $SUDO ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
+        echo -e "${GREEN}✓${NC} 配置已启用"
+    else
+        # 强制更新符号链接
+        $SUDO rm -f "$NGINX_ENABLED"
+        $SUDO ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
+        echo -e "${GREEN}✓${NC} 配置已更新"
+    fi
 else
-    # 强制更新符号链接
-    $SUDO rm -f "$NGINX_ENABLED"
-    $SUDO ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
-    echo -e "${GREEN}✓${NC} 配置已更新"
+    echo -e "${GREEN}✓${NC} 宝塔面板配置已就绪"
 fi
 echo ""
 
@@ -138,32 +170,41 @@ echo ""
 echo -e "${BLUE}[5/6]${NC} 测试并重启 Nginx..."
 
 # 测试配置
-if $SUDO nginx -t 2>&1; then
+if $SUDO $NGINX_CMD -t 2>&1; then
     echo -e "${GREEN}✓${NC} Nginx 配置测试通过"
     
     # 检查 Nginx 是否运行
     if $SUDO systemctl is-active --quiet nginx 2>/dev/null || pgrep -x nginx > /dev/null 2>&1; then
         echo "重启 Nginx..."
-        $SUDO systemctl restart nginx 2>/dev/null || $SUDO nginx -s reload 2>/dev/null || {
-            # 如果重启失败，尝试停止后启动
-            echo "尝试停止并重新启动 Nginx..."
-            $SUDO systemctl stop nginx 2>/dev/null || $SUDO nginx -s stop 2>/dev/null || true
-            sleep 1
-            $SUDO systemctl start nginx 2>/dev/null || $SUDO nginx 2>/dev/null || true
-        }
+        if [ "$IS_BT_PANEL" = true ]; then
+            $SUDO $NGINX_CMD -s reload 2>/dev/null || $SUDO systemctl reload nginx 2>/dev/null || {
+                $SUDO systemctl restart nginx 2>/dev/null || $SUDO $NGINX_CMD -s reload 2>/dev/null || true
+            }
+        else
+            $SUDO systemctl restart nginx 2>/dev/null || $SUDO nginx -s reload 2>/dev/null || {
+                echo "尝试停止并重新启动 Nginx..."
+                $SUDO systemctl stop nginx 2>/dev/null || $SUDO nginx -s stop 2>/dev/null || true
+                sleep 1
+                $SUDO systemctl start nginx 2>/dev/null || $SUDO nginx 2>/dev/null || true
+            }
+        fi
         sleep 2
         echo -e "${GREEN}✓${NC} Nginx 已重启"
     else
         echo "启动 Nginx..."
-        $SUDO systemctl start nginx 2>/dev/null || $SUDO nginx 2>/dev/null || true
+        if [ "$IS_BT_PANEL" = true ]; then
+            $SUDO systemctl start nginx 2>/dev/null || $SUDO $NGINX_CMD 2>/dev/null || true
+        else
+            $SUDO systemctl start nginx 2>/dev/null || $SUDO nginx 2>/dev/null || true
+        fi
         sleep 2
         echo -e "${GREEN}✓${NC} Nginx 已启动"
     fi
-else
-    echo -e "${RED}❌ Nginx 配置测试失败${NC}"
-    $SUDO nginx -t
-    exit 1
-fi
+    else
+        echo -e "${RED}❌ Nginx 配置测试失败${NC}"
+        $SUDO $NGINX_CMD -t
+        exit 1
+    fi
 echo ""
 
 # 6. 检查端口监听和防火墙
