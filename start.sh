@@ -298,9 +298,10 @@ if command -v nginx &> /dev/null || [ -f "$NGINX_CMD" ] || [ "$IS_BT_PANEL" = tr
         done
     fi
     
-    # 创建或更新配置文件
+    # 创建或更新配置文件（仅站点配置文件，不修改主配置文件）
     if [ ! -f "$NGINX_CONFIG" ] || [ "nginx.conf.example" -nt "$NGINX_CONFIG" ]; then
-        echo "创建/更新 Nginx 配置..."
+        echo "创建/更新 Nginx 站点配置..."
+        echo "  配置文件路径: $NGINX_CONFIG"
         
         if [ ! -z "$SSL_CERT" ] && [ -f "$SSL_CERT" ]; then
             # 有 SSL 证书，配置 HTTPS（标准 443 端口）和 HTTP 重定向
@@ -392,7 +393,8 @@ NGINX_EOF
     fi
     
     # 测试并重载
-    if $SUDO $NGINX_CMD -t 2>/dev/null; then
+    echo "测试 Nginx 配置..."
+    if $SUDO $NGINX_CMD -t 2>&1 | tee /tmp/nginx_test.log; then
         if [ "$IS_BT_PANEL" = true ]; then
             $SUDO $NGINX_CMD -s reload 2>/dev/null || $SUDO systemctl reload nginx 2>/dev/null || true
         else
@@ -400,8 +402,28 @@ NGINX_EOF
         fi
         echo -e "${GREEN}✓${NC} Nginx 配置已更新并重载"
     else
-        echo -e "${YELLOW}⚠${NC} Nginx 配置测试失败"
-        $SUDO $NGINX_CMD -t
+        echo -e "${RED}❌ Nginx 配置测试失败${NC}"
+        echo ""
+        echo -e "${YELLOW}错误信息:${NC}"
+        $SUDO $NGINX_CMD -t 2>&1 | grep -E "error|emerg|failed" || true
+        echo ""
+        
+        # 检查是否是主配置文件问题
+        if [ "$IS_BT_PANEL" = true ]; then
+            MAIN_CONF="/www/server/nginx/conf/nginx.conf"
+            if grep -q "server {" "$MAIN_CONF" 2>/dev/null && ! grep -q "http {" "$MAIN_CONF" 2>/dev/null; then
+                echo -e "${YELLOW}⚠${NC} 检测到主配置文件可能有问题"
+                echo -e "${YELLOW}提示: 宝塔面板的主配置文件不应直接包含 server 块${NC}"
+                echo -e "${YELLOW}建议: 在宝塔面板中检查主配置文件，或恢复默认配置${NC}"
+            fi
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}解决方案:${NC}"
+        echo "1. 检查站点配置文件: $NGINX_CONFIG"
+        echo "2. 如果使用宝塔面板，在面板中检查配置"
+        echo "3. 运行诊断: ./start.sh check"
+        exit 1
     fi
 else
     echo -e "${YELLOW}⚠${NC} Nginx 未安装，跳过配置"
