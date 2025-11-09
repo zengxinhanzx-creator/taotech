@@ -5,7 +5,7 @@
 # HTTP 服务器 - 重定向到 HTTPS（如果使用 SSL）
 server {
     listen 80;
-    server_name taotech.com.hk www.taotech.com.hk;
+    server_name _;  # 匹配所有域名，也可以设置为具体域名如 taotech.com.hk
     
     # 如果使用 HTTPS，取消下面的注释以启用重定向
     # return 301 https://$server_name$request_uri;
