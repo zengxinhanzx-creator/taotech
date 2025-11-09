@@ -328,17 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 团队成员卡片悬停效果
-    const teamMembers = document.querySelectorAll('.team-member');
-    teamMembers.forEach(member => {
-        member.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-5px) scale(1.02)';
-        });
-        
-        member.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0) scale(1)';
-        });
-    });
+    // 团队成员卡片悬停效果（已在后面统一处理）
 
     // 按钮点击波纹效果
     const buttons = document.querySelectorAll('.btn');
@@ -507,18 +497,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 团队成员卡片悬停效果增强
-    const teamMembers = document.querySelectorAll('.team-member');
-    teamMembers.forEach(member => {
+    const teamMemberCards = document.querySelectorAll('.team-member');
+    teamMemberCards.forEach(member => {
         member.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px) scale(1.02)';
             const avatar = this.querySelector('.member-avatar');
-            avatar.style.transform = 'scale(1.05)';
-            avatar.style.boxShadow = '0 10px 30px rgba(0, 212, 255, 0.3)';
+            if (avatar) {
+                avatar.style.transform = 'scale(1.05)';
+                avatar.style.boxShadow = '0 10px 30px rgba(0, 212, 255, 0.3)';
+            }
         });
         
         member.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0) scale(1)';
             const avatar = this.querySelector('.member-avatar');
-            avatar.style.transform = 'scale(1)';
-            avatar.style.boxShadow = 'none';
+            if (avatar) {
+                avatar.style.transform = 'scale(1)';
+                avatar.style.boxShadow = 'none';
+            }
         });
     });
 
