@@ -153,10 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
         contactForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('📤 前端：表单提交开始');
-            
-            // 获取表单数据 - 使用 name 属性（更可靠）
+            // 获取表单数据
             const nameInput = this.querySelector('input[name="name"]');
             const emailInput = this.querySelector('input[name="email"]');
             const institutionInput = this.querySelector('input[name="institution"]');
@@ -174,7 +171,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 备用方案：如果找不到，使用索引方式
             if (!name || !email || !institution) {
-                console.warn('⚠ 使用备用方案获取表单数据');
                 const inputs = this.querySelectorAll('input');
                 if (inputs[0] && !name) name = inputs[0].value.trim();
                 if (inputs[1] && !email) email = inputs[1].value.trim();
@@ -185,23 +181,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            console.log('  表单数据:');
-            console.log(`    name: ${name}`);
-            console.log(`    email: ${email}`);
-            console.log(`    institution: ${institution}`);
-            console.log(`    serviceValue: ${serviceValue}`);
-            console.log(`    serviceText: ${serviceText}`);
-            console.log(`    message: ${message ? message.substring(0, 50) + '...' : 'empty'}`);
-            
             // 表单验证
             if (!name || !email || !institution || !serviceValue || !message) {
-                console.warn('❌ 表单验证失败：必填字段为空');
                 showNotification('請填寫所有必填字段', 'error');
                 return;
             }
             
             if (!isValidEmail(email)) {
-                console.warn('❌ 表单验证失败：邮箱格式错误');
                 showNotification('請輸入有效的郵箱地址', 'error');
                 return;
             }
@@ -221,12 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 message
             };
             
-            console.log('  准备发送的数据:', JSON.stringify(submitData, null, 2));
-            
             try {
-                console.log('  发送请求到: /api/submit');
-                
-                // 发送到服务器
                 const response = await fetch('/api/submit', {
                     method: 'POST',
                     headers: {
@@ -235,39 +216,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify(submitData)
                 });
                 
-                console.log(`  响应状态: ${response.status} ${response.statusText}`);
-                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const data = await response.json();
-                console.log('  服务器响应:', JSON.stringify(data, null, 2));
                 
                 if (data.success) {
-                    console.log('✅ 提交成功');
                     showNotification(data.message || '臨床AI演示預約成功！我們的專家團隊將在24小時內與您聯繫，安排演示時間。', 'success');
                     this.reset();
                 } else {
-                    console.warn('❌ 提交失败:', data.message);
                     showNotification(data.message || '提交失敗，請稍後再試', 'error');
                 }
             } catch (error) {
-                console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                console.error('❌ 提交錯誤:');
-                console.error(`  錯誤類型: ${error.name}`);
-                console.error(`  錯誤消息: ${error.message}`);
-                console.error(`  錯誤堆棧:`, error.stack);
-                console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.error('提交錯誤:', error);
                 showNotification('網絡錯誤，請檢查連接後重試', 'error');
             } finally {
                 submitButton.disabled = false;
                 submitButton.innerHTML = originalText;
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             }
         });
-    } else {
-        console.warn('⚠ 未找到表单元素: .contact-form form');
     }
 
     // 邮箱验证函数
