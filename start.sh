@@ -107,10 +107,76 @@ if command -v nginx &> /dev/null; then
     # 创建配置目录
     $SUDO mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
     
+    # 检查是否有 SSL 证书
+    DOMAIN=$(hostname -f 2>/dev/null || echo "")
+    SSL_CERT=""
+    SSL_KEY=""
+    
+    if [ ! -z "$DOMAIN" ] && [ "$DOMAIN" != "localhost" ]; then
+        # 尝试查找证书
+        for cert_dir in /etc/letsencrypt/live/*/; do
+            if [ -f "${cert_dir}fullchain.pem" ] && [ -f "${cert_dir}privkey.pem" ]; then
+                SSL_CERT="${cert_dir}fullchain.pem"
+                SSL_KEY="${cert_dir}privkey.pem"
+                DOMAIN=$(basename "$cert_dir")
+                break
+            fi
+        done
+    fi
+    
     # 创建或更新配置文件
     if [ ! -f "$NGINX_CONFIG" ] || [ "nginx.conf.example" -nt "$NGINX_CONFIG" ]; then
         echo "创建/更新 Nginx 配置..."
-        $SUDO tee "$NGINX_CONFIG" > /dev/null << 'NGINX_EOF'
+        
+        if [ ! -z "$SSL_CERT" ] && [ -f "$SSL_CERT" ]; then
+            # 有 SSL 证书，配置 HTTPS
+            $SUDO tee "$NGINX_CONFIG" > /dev/null << NGINX_EOF
+# HTTP 重定向到 HTTPS
+server {
+    listen 80;
+    server_name _;
+    return 301 https://\$host\$request_uri;
+}
+
+# HTTPS 服务器
+server {
+    listen 443 ssl http2;
+    server_name _;
+    
+    ssl_certificate $SSL_CERT;
+    ssl_certificate_key $SSL_KEY;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+NGINX_EOF
+            echo -e "${GREEN}✓${NC} HTTPS 配置已创建"
+        else
+            # 无 SSL 证书，只配置 HTTP
+            $SUDO tee "$NGINX_CONFIG" > /dev/null << 'NGINX_EOF'
 server {
     listen 80;
     server_name _;
@@ -132,7 +198,9 @@ server {
     }
 }
 NGINX_EOF
-        echo -e "${GREEN}✓${NC} 配置文件已更新"
+            echo -e "${GREEN}✓${NC} HTTP 配置已创建"
+            echo -e "${YELLOW}ℹ${NC} 如需 HTTPS，运行: ./setup-https.sh"
+        fi
     fi
     
     # 启用配置
@@ -169,5 +237,16 @@ echo "  停止: ${GREEN}$PM2_CMD stop $APP_NAME${NC}"
 echo ""
 echo -e "${BLUE}访问地址:${NC}"
 echo "  本地: ${GREEN}http://localhost:8080${NC}"
-echo "  Nginx: ${GREEN}http://localhost:80${NC}"
+echo "  Nginx HTTP: ${GREEN}http://localhost:80${NC}"
+
+# 检查 HTTPS
+if [ -f "$NGINX_CONFIG" ] && grep -q "listen 443" "$NGINX_CONFIG"; then
+    echo "  Nginx HTTPS: ${GREEN}https://localhost:443${NC}"
+    DOMAIN=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONFIG" 2>/dev/null | head -1 | tr -d ' ')
+    if [ ! -z "$DOMAIN" ] && [ "$DOMAIN" != "_" ]; then
+        echo "  域名 HTTPS: ${GREEN}https://$DOMAIN${NC}"
+    fi
+else
+    echo -e "  ${YELLOW}HTTPS: 未配置（运行 ./setup-https.sh 配置）${NC}"
+fi
 echo ""
