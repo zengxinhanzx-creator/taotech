@@ -1,11 +1,23 @@
 const express = require('express');
+const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const bodyParser = require('body-parser');
 
 const app = express();
-const PORT = 8080;
+const HTTP_PORT = process.env.HTTP_PORT || 80;
+const HTTPS_PORT = process.env.HTTPS_PORT || 443;
+const PORT = process.env.PORT || 8080;
 const SUBMISSIONS_FILE = path.join(__dirname, 'submissions.txt');
+
+// SSL 证书路径（从环境变量或默认路径读取）
+const DOMAIN = process.env.DOMAIN || 'yourdomain.com';
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || `/etc/letsencrypt/live/${DOMAIN}/fullchain.pem`;
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || `/etc/letsencrypt/live/${DOMAIN}/privkey.pem`;
+
+// 检查 SSL 证书是否存在
+const hasSSL = fs.existsSync(SSL_CERT_PATH) && fs.existsSync(SSL_KEY_PATH);
 
 // 中间件
 app.use(bodyParser.json());
@@ -86,11 +98,42 @@ ${message}
     }
 });
 
+// HTTP 到 HTTPS 重定向（仅在生产环境且有 SSL 时）
+if (hasSSL && process.env.NODE_ENV === 'production') {
+    const httpApp = express();
+    httpApp.use((req, res) => {
+        res.redirect(301, `https://${req.headers.host}${req.url}`);
+    });
+    http.createServer(httpApp).listen(HTTP_PORT, () => {
+        console.log(`✓ HTTP 服務器運行在端口 ${HTTP_PORT}（重定向到 HTTPS）`);
+    });
+}
+
 // 启动服务器
-app.listen(PORT, () => {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`✓ 服務器運行在 http://localhost:${PORT}`);
-    console.log(`✓ 表單提交將增量保存到: ${SUBMISSIONS_FILE}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-});
+if (hasSSL) {
+    // 使用 HTTPS
+    const options = {
+        cert: fs.readFileSync(SSL_CERT_PATH),
+        key: fs.readFileSync(SSL_KEY_PATH)
+    };
+    
+    https.createServer(options, app).listen(HTTPS_PORT, () => {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`✓ HTTPS 服務器運行在 https://localhost:${HTTPS_PORT}`);
+        console.log(`✓ SSL 證書: ${SSL_CERT_PATH}`);
+        console.log(`✓ 表單提交將增量保存到: ${SUBMISSIONS_FILE}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    });
+} else {
+    // 使用 HTTP（开发环境）
+    app.listen(PORT, () => {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`✓ 服務器運行在 http://localhost:${PORT}`);
+        console.log(`⚠ SSL 證書未找到，使用 HTTP 模式`);
+        console.log(`  證書路徑: ${SSL_CERT_PATH}`);
+        console.log(`  如需啟用 HTTPS，請參考 HTTPS_SETUP.md`);
+        console.log(`✓ 表單提交將增量保存到: ${SUBMISSIONS_FILE}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    });
+}
 
