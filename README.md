@@ -66,7 +66,9 @@ npm install
 npm start
 ```
 
-服務器將運行在 `http://localhost:80`
+服務器將運行在 `http://localhost:8080`
+
+**注意**: 如果使用 Nginx 反向代理，Nginx 监听 80 端口，Node.js 运行在 8080 端口。
 
 ### 表單提交
 
