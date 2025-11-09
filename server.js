@@ -22,6 +22,21 @@ const hasSSL = fs.existsSync(SSL_CERT_PATH) && fs.existsSync(SSL_KEY_PATH);
 // 中间件
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// 请求日志中间件（用于调试）
+app.use((req, res, next) => {
+    if (req.path === '/api/submit') {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📥 收到表单提交请求');
+        console.log(`  方法: ${req.method}`);
+        console.log(`  路径: ${req.path}`);
+        console.log(`  Content-Type: ${req.get('Content-Type')}`);
+        console.log(`  请求体:`, req.body);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+    next();
+});
+
 app.use(express.static(__dirname));
 
 // 确保 submissions.txt 文件存在
@@ -48,8 +63,18 @@ try {
 
 // 处理表单提交
 app.post('/api/submit', (req, res) => {
+    console.log('🔵 进入 /api/submit 处理函数');
+    console.log('  请求体:', JSON.stringify(req.body, null, 2));
+    
     try {
         const { name, email, institution, service, message } = req.body;
+        
+        console.log('  解析后的字段:');
+        console.log(`    name: ${name}`);
+        console.log(`    email: ${email}`);
+        console.log(`    institution: ${institution}`);
+        console.log(`    service: ${service}`);
+        console.log(`    message: ${message ? message.substring(0, 50) + '...' : 'empty'}`);
         
         // 验证必填字段
         if (!name || !email || !institution || !service || !message) {
@@ -104,33 +129,67 @@ ${message}
         }
 
         // 追加写入文件（增量保存）
+        console.log(`📝 準備寫入文件: ${SUBMISSIONS_FILE}`);
+        
         try {
+            // 检查文件权限
+            try {
+                fs.accessSync(SUBMISSIONS_FILE, fs.constants.W_OK);
+                console.log(`✓ 文件可寫入`);
+            } catch (accessError) {
+                console.error(`❌ 文件不可寫入: ${accessError.message}`);
+                throw new Error(`文件權限不足: ${accessError.message}`);
+            }
+            
+            // 获取写入前文件大小
+            let sizeBefore = 0;
+            if (fs.existsSync(SUBMISSIONS_FILE)) {
+                sizeBefore = fs.statSync(SUBMISSIONS_FILE).size;
+                console.log(`  寫入前文件大小: ${sizeBefore} 字節`);
+            }
+            
+            // 追加写入文件
             fs.appendFileSync(SUBMISSIONS_FILE, submission, 'utf8');
-            console.log(`✓ 提交已保存到 ${SUBMISSIONS_FILE}`);
-            console.log(`  提交者: ${name} (${email})`);
+            console.log(`✓ 文件寫入完成`);
             
             // 验证文件是否真的写入了
             const fileStats = fs.statSync(SUBMISSIONS_FILE);
-            console.log(`  文件大小: ${fileStats.size} 字節`);
+            const sizeAfter = fileStats.size;
+            console.log(`  寫入後文件大小: ${sizeAfter} 字節`);
+            console.log(`  增加大小: ${sizeAfter - sizeBefore} 字節`);
             
-            // 读取最后几行验证
+            if (sizeAfter <= sizeBefore) {
+                console.warn(`⚠ 警告：文件大小未增加，可能寫入失敗`);
+            }
+            
+            // 读取文件内容验证
             const fileContent = fs.readFileSync(SUBMISSIONS_FILE, 'utf8');
             if (fileContent.includes(name) && fileContent.includes(email)) {
                 console.log(`✓ 驗證成功：提交內容已寫入文件`);
+                console.log(`  文件最後 200 字符:`, fileContent.slice(-200));
             } else {
                 console.warn(`⚠ 警告：提交內容可能未正確寫入文件`);
+                console.warn(`  文件內容長度: ${fileContent.length}`);
+                console.warn(`  包含姓名: ${fileContent.includes(name)}`);
+                console.warn(`  包含郵箱: ${fileContent.includes(email)}`);
             }
+            
+            console.log(`✓ 提交已保存到 ${SUBMISSIONS_FILE}`);
+            console.log(`  提交者: ${name} (${email})`);
         } catch (writeError) {
             console.error(`❌ 寫入文件時發生錯誤:`, writeError);
-            console.error(`  錯誤詳情: ${writeError.message}`);
+            console.error(`  錯誤類型: ${writeError.name}`);
+            console.error(`  錯誤消息: ${writeError.message}`);
             console.error(`  錯誤堆棧: ${writeError.stack}`);
             throw writeError; // 重新抛出错误以便被外层 catch 捕获
         }
 
+        console.log('✅ 準備發送成功響應');
         res.json({ 
             success: true, 
             message: '臨床AI演示預約成功！我們的專家團隊將在24小時內與您聯繫，安排演示時間。' 
         });
+        console.log('✓ 響應已發送');
     } catch (error) {
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.error('❌ 保存提交時發生錯誤:');
