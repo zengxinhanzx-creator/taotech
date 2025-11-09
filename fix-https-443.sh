@@ -200,11 +200,11 @@ if $SUDO $NGINX_CMD -t 2>&1; then
         sleep 2
         echo -e "${GREEN}✓${NC} Nginx 已启动"
     fi
-    else
-        echo -e "${RED}❌ Nginx 配置测试失败${NC}"
-        $SUDO $NGINX_CMD -t
-        exit 1
-    fi
+else
+    echo -e "${RED}❌ Nginx 配置测试失败${NC}"
+    $SUDO $NGINX_CMD -t
+    exit 1
+fi
 echo ""
 
 # 6. 检查端口监听和防火墙
