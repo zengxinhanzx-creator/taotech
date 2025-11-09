@@ -42,18 +42,29 @@
 
 ```
 TaoTech-Website/
-├── index.html          # 主頁面
-├── styles.css          # 樣式表
-├── script.js           # 前端邏輯
-├── server.js           # 後端服務器
-├── package.json        # 項目配置
-├── ecosystem.config.js # PM2 配置文件
-├── nginx.conf.example  # Nginx 配置示例
-├── start.sh            # 一鍵啟動腳本
-├── stop.sh             # 停止服務腳本
-├── submissions.txt     # 表單提交記錄（自動生成）
-├── .gitignore          # Git忽略文件
-└── README.md           # 項目說明
+├── index.html              # 主頁面
+├── styles.css              # 樣式表
+├── script.js               # 前端邏輯
+├── server.js               # 後端服務器
+├── package.json            # 項目配置
+├── ecosystem.config.js     # PM2 配置文件
+├── favicon.svg             # 網站圖標
+│
+├── 部署腳本/
+│   ├── start.sh            # 一鍵啟動腳本（支持診斷模式）
+│   ├── stop.sh             # 停止服務腳本
+│   └── setup-https.sh     # SSL 證書獲取腳本
+│
+├── Nginx 配置/
+│   ├── nginx.conf.example          # 標準 Nginx 配置示例
+│   └── taotech.com.hk.bt.conf      # 宝塔面板配置模板
+│
+├── 文檔/
+│   ├── README.md           # 項目說明
+│   ├── BT_PANEL_SETUP.md   # 宝塔面板設置指南
+│   └── PATHS_AND_PORTS.md  # 路徑和端口配置說明
+│
+└── submissions.txt         # 表單提交記錄（自動生成）
 ```
 
 ## 🚀 快速開始
@@ -65,16 +76,29 @@ TaoTech-Website/
 ```bash
 # 啟動所有服務（PM2 + Nginx）
 ./start.sh
+
+# 診斷模式（檢查服務狀態和配置）
+./start.sh check
 ```
 
 腳本會自動：
+- 檢測環境（宝塔面板或標準 Nginx）
 - 檢查 Node.js 和 npm
 - 安裝項目依賴
 - 安裝 PM2（如果未安裝）
 - 清理舊進程
 - 啟動 Node.js 應用
-- 配置 Nginx 反向代理
+- 自動檢測 SSL 證書（宝塔面板或 Let's Encrypt）
+- 配置 Nginx 反向代理（HTTP 80 → HTTPS 443）
 - 檢查服務狀態
+
+**診斷功能**：
+- 運行 `./start.sh check` 可以診斷：
+  - SSL 證書狀態
+  - 端口監聽狀態（80, 443, 8080）
+  - PM2 應用狀態
+  - Nginx 配置狀態
+  - 網站訪問測試
 
 ### 方法二：手動啟動
 
@@ -92,7 +116,12 @@ npm start
 
 服務器將運行在 `http://localhost:8080`
 
-**注意**: 如果使用 Nginx 反向代理，Nginx 监听 80 端口，Node.js 运行在 8080 端口。参考 `nginx.conf.example` 配置 Nginx。
+**注意**: 
+- Nginx 监听 80 端口（HTTP）和 443 端口（HTTPS）
+- Node.js 运行在 8080 端口（内部端口）
+- HTTP 自动重定向到 HTTPS
+- 脚本会自动检测宝塔面板环境并使用相应配置
+- 参考 `nginx.conf.example`（标准 Nginx）或 `taotech.com.hk.bt.conf`（宝塔面板）配置
 
 ### 停止服務
 
@@ -104,6 +133,22 @@ npm start
 pm2 stop taotech
 pm2 delete taotech
 ```
+
+### HTTPS 配置
+
+獲取 SSL 證書：
+
+```bash
+# 使用 Let's Encrypt 獲取免費證書
+./setup-https.sh
+```
+
+腳本會自動：
+- 檢查 Certbot
+- 獲取 SSL 證書
+- 配置自動續期
+
+**宝塔面板用戶**：可以在宝塔面板中直接申請 SSL 證書，腳本會自動檢測並使用。
 
 ### 表單提交
 
