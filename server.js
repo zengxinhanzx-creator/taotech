@@ -8,7 +8,7 @@ const bodyParser = require('body-parser');
 const app = express();
 const HTTP_PORT = process.env.HTTP_PORT || 80;
 const HTTPS_PORT = process.env.HTTPS_PORT || 443;
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 80;
 const SUBMISSIONS_FILE = path.join(__dirname, 'submissions.txt');
 
 // SSL 证书路径（从环境变量或默认路径读取）

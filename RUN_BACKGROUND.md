@@ -76,7 +76,7 @@ module.exports = {
     max_memory_restart: '1G',
     env: {
       NODE_ENV: 'production',
-      PORT: 8080
+      PORT: 80
     },
     error_file: './logs/pm2-error.log',
     out_file: './logs/pm2-out.log',
@@ -210,7 +210,7 @@ ExecStart=/usr/bin/node /www/wwwroot/taotech.com.hk/server.js
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
-Environment=PORT=8080
+Environment=PORT=80
 
 # 日志
 StandardOutput=journal
@@ -286,15 +286,15 @@ node server.js
 
 ```bash
 # 检查端口
-netstat -tlnp | grep 8080
+netstat -tlnp | grep 80
 # 或
-lsof -i :8080
+lsof -i :80
 
 # 检查进程
 ps aux | grep "node server.js"
 
 # 测试连接
-curl http://localhost:8080
+curl http://localhost:80
 ```
 
 ## 🛠️ 故障排查
@@ -318,7 +318,7 @@ journalctl -u taotech -n 50
 
 ```bash
 # 查找占用端口的进程
-lsof -i :8080
+lsof -i :80
 
 # 停止占用进程
 kill <PID>

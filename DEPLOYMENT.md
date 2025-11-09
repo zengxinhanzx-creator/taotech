@@ -85,7 +85,7 @@ ExecStart=/usr/bin/node /www/wwwroot/taotech.com.hk/server.js
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
-Environment=PORT=8080
+Environment=PORT=80
 
 [Install]
 WantedBy=multi-user.target
@@ -126,7 +126,7 @@ chown -R www:www /www/wwwroot/taotech.com.hk
 **解决方法**:
 ```bash
 # 检查端口占用
-lsof -i :8080
+lsof -i :80
 
 # 修改 server.js 中的端口号，或使用环境变量
 export PORT=3000
@@ -152,7 +152,7 @@ server {
     server_name taotech.com.hk www.taotech.com.hk;
     
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:80;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -175,7 +175,7 @@ server {
 
 ```env
 NODE_ENV=production
-PORT=8080
+PORT=80
 DOMAIN=taotech.com.hk
 ```
 

@@ -17,7 +17,7 @@ const testData = {
 
 const options = {
     hostname: 'localhost',
-    port: 8080,
+    port: 80,
     path: '/api/submit',
     method: 'POST',
     headers: {
@@ -79,7 +79,7 @@ req.on('error', (error) => {
     console.error('');
     console.error('请确保:');
     console.error('  1. 服务器正在运行 (node server.js)');
-    console.error('  2. 端口号正确 (默认 8080)');
+    console.error('  2. 端口号正确 (默认 80)');
     console.error('  3. 服务器地址正确');
 });
 

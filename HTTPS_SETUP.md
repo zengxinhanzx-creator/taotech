@@ -128,7 +128,7 @@ server {
 
     # 反向代理到 Node.js 应用
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:80;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';

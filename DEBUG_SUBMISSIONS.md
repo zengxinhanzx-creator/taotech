@@ -72,7 +72,7 @@ node test-submission.js
 ps aux | grep node
 
 # 检查端口
-netstat -tlnp | grep 8080
+netstat -tlnp | grep 80
 
 # 检查浏览器控制台（F12）是否有错误
 ```
@@ -125,7 +125,7 @@ echo "test" >> submissions.txt
 ### 测试 1: 使用 curl
 
 ```bash
-curl -X POST http://localhost:8080/api/submit \
+curl -X POST http://localhost:80/api/submit \
   -H "Content-Type: application/json" \
   -d '{
     "name": "测试",

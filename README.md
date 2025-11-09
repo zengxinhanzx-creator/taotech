@@ -66,7 +66,7 @@ npm install
 npm start
 ```
 
-服務器將運行在 `http://localhost:8080`
+服務器將運行在 `http://localhost:80`
 
 ### 表單提交
 
