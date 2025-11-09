@@ -64,20 +64,51 @@ echo ""
 
 # 3. 检查 PM2
 echo -e "${BLUE}[3/7]${NC} 检查 PM2..."
-if ! command -v pm2 &> /dev/null; then
+
+# 获取 npm 全局路径
+NPM_GLOBAL_PATH=$(npm config get prefix 2>/dev/null || echo "$HOME/.npm-global")
+PM2_PATH="$NPM_GLOBAL_PATH/bin/pm2"
+
+# 检查 PM2 是否存在
+if [ -f "$PM2_PATH" ]; then
+    PM2_CMD="$PM2_PATH"
+    echo -e "${GREEN}✓${NC} PM2 已安装: $($PM2_CMD -v)"
+elif command -v pm2 &> /dev/null; then
+    PM2_CMD="pm2"
+    echo -e "${GREEN}✓${NC} PM2: $(pm2 -v)"
+else
     echo "PM2 未安装，正在安装..."
     npm install -g pm2
-    echo -e "${GREEN}✓${NC} PM2 安装完成"
-else
-    echo -e "${GREEN}✓${NC} PM2: $(pm2 -v)"
+    
+    # 重新获取路径
+    NPM_GLOBAL_PATH=$(npm config get prefix 2>/dev/null || echo "$HOME/.npm-global")
+    PM2_PATH="$NPM_GLOBAL_PATH/bin/pm2"
+    
+    if [ -f "$PM2_PATH" ]; then
+        PM2_CMD="$PM2_PATH"
+        echo -e "${GREEN}✓${NC} PM2 安装完成"
+    elif command -v pm2 &> /dev/null; then
+        PM2_CMD="pm2"
+        echo -e "${GREEN}✓${NC} PM2 安装完成"
+    else
+        # 尝试添加到 PATH
+        export PATH="$NPM_GLOBAL_PATH/bin:$PATH"
+        if command -v pm2 &> /dev/null; then
+            PM2_CMD="pm2"
+            echo -e "${GREEN}✓${NC} PM2 安装完成"
+        else
+            echo -e "${RED}❌ PM2 安装失败，请手动安装: npm install -g pm2${NC}"
+            exit 1
+        fi
+    fi
 fi
 echo ""
 
 # 4. 停止旧进程（如果存在）
 echo -e "${BLUE}[4/7]${NC} 清理旧进程..."
-if pm2 list | grep -q "$APP_NAME"; then
+if $PM2_CMD list 2>/dev/null | grep -q "$APP_NAME"; then
     echo "停止旧的 PM2 进程..."
-    pm2 delete "$APP_NAME" 2>/dev/null || true
+    $PM2_CMD delete "$APP_NAME" 2>/dev/null || true
     sleep 1
 fi
 
@@ -93,25 +124,25 @@ echo ""
 # 5. 启动 PM2 应用
 echo -e "${BLUE}[5/7]${NC} 启动 Node.js 应用..."
 if [ -f "ecosystem.config.js" ]; then
-    pm2 start ecosystem.config.js
+    $PM2_CMD start ecosystem.config.js
     echo -e "${GREEN}✓${NC} 使用 ecosystem.config.js 启动"
 else
-    pm2 start server.js --name "$APP_NAME"
+    $PM2_CMD start server.js --name "$APP_NAME"
     echo -e "${GREEN}✓${NC} 使用 server.js 启动"
 fi
 
 # 保存 PM2 进程列表
-pm2 save 2>/dev/null || true
+$PM2_CMD save 2>/dev/null || true
 
 # 等待应用启动
 sleep 2
 
 # 检查应用状态
-if pm2 list | grep -q "$APP_NAME.*online"; then
+if $PM2_CMD list 2>/dev/null | grep -q "$APP_NAME.*online"; then
     echo -e "${GREEN}✓${NC} 应用启动成功"
 else
-    echo -e "${RED}❌ 应用启动失败，请查看日志: pm2 logs $APP_NAME${NC}"
-    pm2 logs "$APP_NAME" --lines 20
+    echo -e "${RED}❌ 应用启动失败，请查看日志: $PM2_CMD logs $APP_NAME${NC}"
+    $PM2_CMD logs "$APP_NAME" --lines 20
     exit 1
 fi
 echo ""
@@ -164,7 +195,7 @@ echo ""
 
 # PM2 状态
 echo -e "${BLUE}PM2 应用状态:${NC}"
-pm2 list | grep "$APP_NAME" || echo "未找到应用"
+$PM2_CMD list 2>/dev/null | grep "$APP_NAME" || echo "未找到应用"
 echo ""
 
 # 端口检查
@@ -200,10 +231,10 @@ echo -e "${GREEN}✓ 启动完成！${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${BLUE}常用命令:${NC}"
-echo "  查看日志: ${GREEN}pm2 logs $APP_NAME${NC}"
-echo "  查看状态: ${GREEN}pm2 status${NC}"
-echo "  重启: ${GREEN}pm2 restart $APP_NAME${NC}"
-echo "  停止: ${GREEN}pm2 stop $APP_NAME${NC}"
+echo "  查看日志: ${GREEN}$PM2_CMD logs $APP_NAME${NC}"
+echo "  查看状态: ${GREEN}$PM2_CMD status${NC}"
+echo "  重启: ${GREEN}$PM2_CMD restart $APP_NAME${NC}"
+echo "  停止: ${GREEN}$PM2_CMD stop $APP_NAME${NC}"
 echo ""
 echo -e "${BLUE}访问地址:${NC}"
 echo "  本地: ${GREEN}http://localhost:8080${NC}"
