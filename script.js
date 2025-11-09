@@ -163,14 +163,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const serviceSelect = this.querySelector('select[name="service"]');
             const messageTextarea = this.querySelector('textarea[name="message"]');
             
-            const name = nameInput ? nameInput.value.trim() : '';
-            const email = emailInput ? emailInput.value.trim() : '';
-            const institution = institutionInput ? institutionInput.value.trim() : '';
+            let name = nameInput ? nameInput.value.trim() : '';
+            let email = emailInput ? emailInput.value.trim() : '';
+            let institution = institutionInput ? institutionInput.value.trim() : '';
             const serviceValue = serviceSelect ? serviceSelect.value : '';
             const serviceText = serviceSelect && serviceSelect.selectedIndex > 0 
                 ? serviceSelect.options[serviceSelect.selectedIndex].text 
                 : serviceValue;
-            const message = messageTextarea ? messageTextarea.value.trim() : '';
+            let message = messageTextarea ? messageTextarea.value.trim() : '';
             
             // 备用方案：如果找不到，使用索引方式
             if (!name || !email || !institution) {
@@ -179,6 +179,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (inputs[0] && !name) name = inputs[0].value.trim();
                 if (inputs[1] && !email) email = inputs[1].value.trim();
                 if (inputs[2] && !institution) institution = inputs[2].value.trim();
+                if (!message) {
+                    const textarea = this.querySelector('textarea');
+                    if (textarea) message = textarea.value.trim();
+                }
             }
             
             console.log('  表单数据:');
