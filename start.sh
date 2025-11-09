@@ -394,7 +394,10 @@ NGINX_EOF
     
     # 测试并重载
     echo "测试 Nginx 配置..."
-    if $SUDO $NGINX_CMD -t 2>&1 | tee /tmp/nginx_test.log; then
+    NGINX_TEST_OUTPUT=$($SUDO $NGINX_CMD -t 2>&1)
+    NGINX_TEST_STATUS=$?
+    
+    if [ $NGINX_TEST_STATUS -eq 0 ]; then
         if [ "$IS_BT_PANEL" = true ]; then
             $SUDO $NGINX_CMD -s reload 2>/dev/null || $SUDO systemctl reload nginx 2>/dev/null || true
         else
@@ -405,7 +408,7 @@ NGINX_EOF
         echo -e "${RED}❌ Nginx 配置测试失败${NC}"
         echo ""
         echo -e "${YELLOW}错误信息:${NC}"
-        $SUDO $NGINX_CMD -t 2>&1 | grep -E "error|emerg|failed" || true
+        echo "$NGINX_TEST_OUTPUT" | grep -E "error|emerg|failed" || echo "$NGINX_TEST_OUTPUT"
         echo ""
         
         # 检查是否是主配置文件问题
