@@ -114,7 +114,9 @@ ${message}
     }
 });
 
-// HTTP 到 HTTPS 重定向
+// HTTP 到 HTTPS 重定向（已禁用）
+// 如果需要启用 HTTP 到 HTTPS 的自动跳转，取消下面的注释
+/*
 if (hasSSL && process.env.NODE_ENV === 'production') {
     const httpApp = express();
     httpApp.use((req, res) => {
@@ -124,6 +126,7 @@ if (hasSSL && process.env.NODE_ENV === 'production') {
         console.log(`HTTP 服務器運行在端口 ${HTTP_PORT}（重定向到 HTTPS）`);
     });
 }
+*/
 
 // 启动服务器
 if (hasSSL) {
@@ -132,9 +135,15 @@ if (hasSSL) {
         key: fs.readFileSync(SSL_KEY_PATH)
     };
     
+    // 启动 HTTPS 服务器
     https.createServer(options, app).listen(HTTPS_PORT, '0.0.0.0', () => {
         console.log(`HTTPS 服務器運行在 https://0.0.0.0:${HTTPS_PORT}`);
         console.log(`表單提交將保存到: ${SUBMISSIONS_FILE}`);
+    });
+    
+    // 同时启动 HTTP 服务器（不重定向到 HTTPS）
+    http.createServer(app).listen(HTTP_PORT, '0.0.0.0', () => {
+        console.log(`HTTP 服務器運行在 http://0.0.0.0:${HTTP_PORT}（不重定向）`);
     });
 } else {
     const isProduction = process.env.NODE_ENV === 'production';
