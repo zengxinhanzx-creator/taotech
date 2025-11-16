@@ -114,19 +114,8 @@ ${message}
     }
 });
 
-// HTTP 到 HTTPS 重定向（已禁用）
-// 如果需要启用 HTTP 到 HTTPS 的自动跳转，取消下面的注释
-/*
-if (hasSSL && process.env.NODE_ENV === 'production') {
-    const httpApp = express();
-    httpApp.use((req, res) => {
-        res.redirect(301, `https://${req.headers.host}${req.url}`);
-    });
-    http.createServer(httpApp).listen(HTTP_PORT, '0.0.0.0', () => {
-        console.log(`HTTP 服務器運行在端口 ${HTTP_PORT}（重定向到 HTTPS）`);
-    });
-}
-*/
+// HTTPS 到 HTTP 重定向
+// 如果检测到 SSL 证书，HTTPS 请求将自动重定向到 HTTP
 
 // 启动服务器
 if (hasSSL) {
@@ -135,15 +124,27 @@ if (hasSSL) {
         key: fs.readFileSync(SSL_KEY_PATH)
     };
     
-    // 启动 HTTPS 服务器
-    https.createServer(options, app).listen(HTTPS_PORT, '0.0.0.0', () => {
-        console.log(`HTTPS 服務器運行在 https://0.0.0.0:${HTTPS_PORT}`);
-        console.log(`表單提交將保存到: ${SUBMISSIONS_FILE}`);
+    // 创建 HTTPS 重定向服务器（重定向到 HTTP）
+    const httpsRedirectApp = express();
+    httpsRedirectApp.use((req, res) => {
+        // 获取主机名，移除端口号（如果有）
+        const host = req.headers.host.split(':')[0];
+        // 构建 HTTP URL（使用 HTTP_PORT，如果端口是80则省略）
+        const httpUrl = HTTP_PORT === 80 
+            ? `http://${host}${req.url}`
+            : `http://${host}:${HTTP_PORT}${req.url}`;
+        res.redirect(301, httpUrl);
     });
     
-    // 同时启动 HTTP 服务器（不重定向到 HTTPS）
+    // 启动 HTTPS 服务器（重定向到 HTTP）
+    https.createServer(options, httpsRedirectApp).listen(HTTPS_PORT, '0.0.0.0', () => {
+        console.log(`HTTPS 服務器運行在端口 ${HTTPS_PORT}（重定向到 HTTP）`);
+    });
+    
+    // 启动 HTTP 服务器（提供实际服务）
     http.createServer(app).listen(HTTP_PORT, '0.0.0.0', () => {
-        console.log(`HTTP 服務器運行在 http://0.0.0.0:${HTTP_PORT}（不重定向）`);
+        console.log(`HTTP 服務器運行在 http://0.0.0.0:${HTTP_PORT}`);
+        console.log(`表單提交將保存到: ${SUBMISSIONS_FILE}`);
     });
 } else {
     const isProduction = process.env.NODE_ENV === 'production';
